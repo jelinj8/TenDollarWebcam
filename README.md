@@ -58,10 +58,13 @@ as follows:
 vlc -v rtsp://yourdevipaddr:8554/mjpeg/1
 ```
 
-Note: an older version of these instructions/code had you manually place your
-wifi keys into the source code.  That code is now commented out, in favor of [AutoWifi](https://github.com/geeksville/AutoWifi).
+~~Note: an older version of these instructions/code had you manually place your
+wifi keys into the source code.  That code is now commented out, in favor of [AutoWifi](https://github.com/geeksville/AutoWifi).~~
 
-In case of error like this:
+Modified to use **AutoConnect** library for WiFi management.
+
+# Compilation problem hints
+In case of error like this (on Win/Mac):
 ```
 .pio\libdeps\esp32\Micro-RTSP_ID6071\src\CRtspSession.cpp: In member function 'const char* CRtspSession::DateHeader()':
 .pio\libdeps\esp32\Micro-RTSP_ID6071\src\CRtspSession.cpp:358:26: error: 'time' was not declared in this scope
@@ -74,5 +77,9 @@ In case of error like this:
      strftime(buf, sizeof buf, "Date: %a, %b %d %Y %H:%M:%S GMT", gmtime(&tt));
 ```
 
-There might be a conflict with Time lib (on Win/Mac, no case sensitivity). I've modified my PIO ESP32 platform by renaming c:\Users\user\.platformio\packages\toolchain-xtensa32\xtensa-esp32-elf\include\time.h to time.h.
-Then I've changed include in TenDollarWebcam\.pio\libdeps\esp32\Micro-RTSP_ID6071\src\CRtspSession.cpp to #include <_time.h> 
+There might be a conflict with Time lib (no case sensitivity in filenames). I've modified my PIO ESP32 platform by renaming
+```c:\Users\user\.platformio\packages\toolchain-xtensa32\xtensa-esp32-elf\include\time.h``` to ```time.h```.
+Then I've changed include in ```TenDollarWebcam\.pio\libdeps\esp32\Micro-RTSP_ID6071\src\CRtspSession.cpp``` to
+```
+#include <_time.h>
+```
