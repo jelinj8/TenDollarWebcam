@@ -78,7 +78,7 @@ In case of error like this (on Win/Mac):
 ```
 
 There might be a conflict with Time lib (no case sensitivity in filenames). I've modified my PIO ESP32 platform by renaming
-```c:\Users\user\.platformio\packages\toolchain-xtensa32\xtensa-esp32-elf\include\time.h``` to ```time.h```.
+```c:\Users\user\.platformio\packages\toolchain-xtensa32\xtensa-esp32-elf\include\time.h``` to ```_time.h```.
 Then I've changed include in ```TenDollarWebcam\.pio\libdeps\esp32\Micro-RTSP_ID6071\src\CRtspSession.cpp``` to
 ```
 #include <_time.h>

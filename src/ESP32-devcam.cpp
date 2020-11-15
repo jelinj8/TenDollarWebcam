@@ -103,7 +103,7 @@ void handle_root(void)
     WiFiClient client = server.client();
     String response = "HTTP/1.1 200 OK\r\n";
     response += "Content-disposition: inline; filename=index.htm\r\n";
-    response += "Content-type: text/html\r\n\r\nRoot\r\n";
+    response += "Content-type: text/html\r\n\r\nESP32 camera. <a href=\"/jpg\">/jpg</a> for single image, <a href=\"/stream\">/stream</a> for MJPEG stream.<br><img src=\"/jpg\" />\r\n";
     server.sendContent(response);
 }
 
@@ -167,8 +167,8 @@ void setup()
         //cconfig.frame_size = FRAMESIZE_UXGA;
         cconfig.frame_size = FRAMESIZE_SXGA;
         cconfig.jpeg_quality = 10;
-        // cconfig.fb_count = 2;
-        cconfig.fb_count = 1;
+        cconfig.fb_count = 2;
+        // cconfig.fb_count = 1;
         Serial.println("PSRAM found.");
     } else {
         cconfig.frame_size = FRAMESIZE_SVGA;
@@ -237,8 +237,9 @@ void loop()
 Portal.handleClient();
 
 #ifdef ENABLE_RTSPSERVER
-    uint32_t msecPerFrame = 100;
+    uint32_t msecPerFrame = 500;
     static uint32_t lastimage = millis();
+    static float fps;
 
     // If we have an active client connection, just service that until gone
     // (FIXME - support multiple simultaneous clients)
@@ -249,11 +250,12 @@ Portal.handleClient();
         uint32_t now = millis();
         if(now > lastimage + msecPerFrame || now < lastimage) { // handle clock rollover
             session->broadcastCurrentFrame(now);
+            fps = 1000.0/(now-lastimage);
             lastimage = now;
-            printf("%d RTSP frame\n", lastimage);
+            now = millis();
+            printf("%d RTSP frame %.2f FPS\n", lastimage, fps);
 
             // check if we are overrunning our max frame rate
-            now = millis();
             if(now > lastimage + msecPerFrame)
                 printf("warning exceeding max frame rate of %d ms\n", now - lastimage);
         }
