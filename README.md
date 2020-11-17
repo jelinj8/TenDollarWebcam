@@ -44,8 +44,14 @@ in these instructions I describe use of their command line tool.
 3. Download this git repo and cd into it.
 4. pio run -t upload (This command will fetch dependencies, build the project and install it on the board via USB)
 
-The first time you run your device you'll need to use an Android or iOS app to give it
-access to your wifi network.  See [instructions here](https://github.com/geeksville/AutoWifi/blob/master/README.md).
+~~The first time you run your device you'll need to use an Android or iOS app to give it
+access to your wifi network. See [instructions here](https://github.com/geeksville/AutoWifi/blob/master/README.md).~~
+To configure WiFi connection short GPIO16 (default cfg) to GND and reset to force the board into configuration mode.
+It'll start an AP with captive portal. When you connect to it, you should be asked to "login a network". That would
+redirect you to the config UI and allow you configure the network(s) the camera should connect to.
+
+When rebooted, the camera autoconnects to configured networks. If it isn't succesful, it starts to flash the LED,
+until it is succesfull.
 
 At this point your device should be happily serving up frames.  Either via
 a web-browser at http://yourdeviceipaddr or more interestingly via a standard
@@ -55,13 +61,18 @@ to that screen.
 To see the RTSP stream use the client of your choice, for example you can use VLC
 as follows:
 ```
-vlc -v rtsp://yourdevipaddr:8554/mjpeg/1
+vlc -v rtsp://yourdevipaddr:554/mjpeg/1
 ```
 
-~~Note: an older version of these instructions/code had you manually place your
-wifi keys into the source code.  That code is now commented out, in favor of [AutoWifi](https://github.com/geeksville/AutoWifi).~~
+* Modified to use [AutoConnect](https://github.com/Hieromon/AutoConnect) library for WiFi management.
+* Created basic root page with links to stream, single image and rtsp url + an image.
 
-Modified to use **AutoConnect** library for WiFi management.
+Current code supports only one client at a time. If you want to share the camera, use the /jpg url to get a single frame repeatedly.
+I'm using it on a linux server (just a small WiFi router with OpenWRT + external storage, serving a static HTML page). It downloads
+a frame periodically and symlinks to the last downloaded file. That link is then used in a web page to be shown on a self-refreshing
+page shown on a smart TV or a phone. Another script takes care to delete old frames (e.g. 10 days and older) every night. This way
+I can display a matrix (in my case 2x2) of images. It doesn't have a too big refresh rate, but the number of clients is limited only
+by my bandwidth and I can combine it with cameras of other brands (they just have to be capable of providing an image to download).
 
 # Compilation problem hints
 In case of error like this (on Win/Mac):

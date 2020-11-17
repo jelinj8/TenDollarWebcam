@@ -1,32 +1,34 @@
 #include <Arduino.h>
 
-#include "OV2640.h"
-#include <WiFi.h>
-#include <WebServer.h>
-#include <WiFiClient.h>
-#include <AutoConnect.h>
-
-#include "SimStreamer.h"
-#include "OV2640Streamer.h"
-#include "OV2640.h"
-#include "CRtspSession.h"
-
 // #define USEBOARD_TTGO_T
-// 
+//
 #define USEBOARD_AITHINKER
 // #define USEBOARD_ESP_CAM
 
-// #define ENABLE_OLED //if want use oled, turn on thi macro
-// 
+// #define ENABLE_OLED //if want use oled, turn on this macro
+//
 #define ENABLE_WEBSERVER
-// 
+//
 #define ENABLE_RTSPSERVER
 
-// when pulled low, forces AP mode
+// when pulled low, forces config (AP) mode.
 #define FACTORYRESET_BUTTON 16
 
-#define HOSTNAME "ESP32-Camera"
-#define HOSTNAME_CFG "ESP32-CameraCfg"
+#define HOSTNAME "ESP32-Camera-"
+
+#include "OV2640.h"
+
+#include <AutoConnect.h>
+
+#ifdef ENABLE_WEBSERVER
+#include <WebServer.h>
+#endif
+
+#ifdef ENABLE_RTSPSERVER
+#include "SimStreamer.h"
+#include "OV2640Streamer.h"
+#include "CRtspSession.h"
+#endif
 
 #ifdef ENABLE_OLED
 #include "SSD1306.h"
@@ -45,13 +47,17 @@ bool hasDisplay; // we probe for the device at runtime
 
 OV2640 cam;
 
-WebServer server(80);
-AutoConnect Portal(server);
-
-AutoConnectConfig Config("CamCFG", "12345678");
+AutoConnectConfig Config("ESP32-CamCfg", "12345678");
 
 #ifdef ENABLE_RTSPSERVER
-WiFiServer rtspServer(8554);
+WiFiServer rtspServer(554);
+#endif
+
+#ifdef ENABLE_WEBSERVER
+WebServer server(80);
+AutoConnect Portal(server);
+#else
+AutoConnect Portal;
 #endif
 
 #ifdef ENABLE_WEBSERVER
@@ -103,7 +109,13 @@ void handle_root(void)
     WiFiClient client = server.client();
     String response = "HTTP/1.1 200 OK\r\n";
     response += "Content-disposition: inline; filename=index.htm\r\n";
-    response += "Content-type: text/html\r\n\r\nESP32 camera. <a href=\"/jpg\">/jpg</a> for single image, <a href=\"/stream\">/stream</a> for MJPEG stream.<br><img src=\"/jpg\" />\r\n";
+    response += "Content-type: text/html\r\n\r\n<html><body><H1>ESP32 camera ";
+    response += HOSTNAME;
+    response += String((uint32_t)(ESP.getEfuseMac() >> 32), HEX);
+    response += "</H1><a href=\"/jpg\">/jpg</a> for single image, <a href=\"/stream\">/stream</a> for MJPEG stream.<br>For RTSP use rtsp://";
+    response += HOSTNAME;
+    response += String((uint32_t)(ESP.getEfuseMac() >> 32), HEX);
+    response += ":554/mjpeg/1<br><img src=\"/jpg\" /></body></html>\r\n";
     server.sendContent(response);
 }
 
@@ -126,7 +138,8 @@ void handleNotFound()
 #ifdef ENABLE_OLED
 void lcdMessage(String msg)
 {
-    if(hasDisplay) {
+    if (hasDisplay)
+    {
         display.clear();
         display.drawString(128 / 2, 32 / 2, msg);
         display.display();
@@ -136,15 +149,16 @@ void lcdMessage(String msg)
 
 void setup()
 {
-  #ifdef ENABLE_OLED
+#ifdef ENABLE_OLED
     hasDisplay = display.init();
-    if(hasDisplay) {
+    if (hasDisplay)
+    {
         display.flipScreenVertically();
         display.setFont(ArialMT_Plain_16);
         display.setTextAlignment(TEXT_ALIGN_CENTER);
     }
     lcdMessage("booting");
-  #endif
+#endif
 
     Serial.begin(115200);
     while (!Serial)
@@ -152,7 +166,6 @@ void setup()
         ;
     }
 
-    
 #if defined(USEBOARD_TTGO_T)
     camera_config_t cconfig = esp32cam_ttgo_t_config;
 #elif defined(USEBOARD_AITHINKER)
@@ -160,17 +173,20 @@ void setup()
 #elif defined(USEBOARD_ESP_CAM)
     camera_config_t cconfig = esp32cam_config;
 #else
-    #error "BOARD NOT DEFINED"
+#error "BOARD NOT DEFINED"
 #endif
 
-    if(psramFound()){
+    if (psramFound())
+    {
         //cconfig.frame_size = FRAMESIZE_UXGA;
         cconfig.frame_size = FRAMESIZE_SXGA;
         cconfig.jpeg_quality = 10;
         cconfig.fb_count = 2;
         // cconfig.fb_count = 1;
         Serial.println("PSRAM found.");
-    } else {
+    }
+    else
+    {
         cconfig.frame_size = FRAMESIZE_SVGA;
         cconfig.jpeg_quality = 12;
         cconfig.fb_count = 1;
@@ -183,36 +199,35 @@ void setup()
     lcdMessage(ip.toString());
 #endif
 
-    #ifdef ENABLE_WEBSERVER
-        server.on("/", HTTP_GET, handle_root);
-        server.on("/stream", HTTP_GET, handle_jpg_stream);
-        server.on("/jpg", HTTP_GET, handle_jpg);
-        server.onNotFound(handleNotFound);
-    #endif
-
+#ifdef ENABLE_WEBSERVER
+    server.on("/", HTTP_GET, handle_root);
+    server.on("/stream", HTTP_GET, handle_jpg_stream);
+    server.on("/jpg", HTTP_GET, handle_jpg);
+    server.onNotFound(handleNotFound);
+#endif
 
     Config.autoReconnect = true;
+    Config.autoRise = false;
     Config.title = "Camera config";
+    Config.ticker = true;
     Config.tickerPort = 4;
     Config.tickerOn = HIGH;
-    Config.homeUri = "/jpg";
+    Config.hostName = HOSTNAME + String((uint32_t)(ESP.getEfuseMac() >> 32), HEX);
 
-    #ifdef FACTORYRESET_BUTTON
+#ifdef FACTORYRESET_BUTTON
     pinMode(FACTORYRESET_BUTTON, INPUT);
-    if(!digitalRead(FACTORYRESET_BUTTON)){     // 1 means not pressed
+    if (!digitalRead(FACTORYRESET_BUTTON))
+    { // 1 means not pressed
         Serial.println("Force AP mode");
-        Config.hostName = HOSTNAME_CFG;
         Config.immediateStart = true;
-    }else{
-        Config.hostName = HOSTNAME;
+        Config.autoRise = true;
     }
-    #else
-        Config.hostName = HOSTNAME;
-    #endif
+#endif
 
     Portal.config(Config);
 
-    if(Portal.begin()){
+    if (Portal.begin())
+    {
         Serial.println("WiFi connected: " + WiFi.localIP().toString());
     }
     else
@@ -222,7 +237,6 @@ void setup()
     rtspServer.begin();
     Serial.println("RTSP server started.");
 #endif
-
 }
 
 #ifdef ENABLE_RTSPSERVER
@@ -234,7 +248,7 @@ WiFiClient client; // FIXME, support multiple clients
 void loop()
 {
 
-Portal.handleClient();
+    Portal.handleClient();
 
 #ifdef ENABLE_RTSPSERVER
     uint32_t msecPerFrame = 500;
@@ -243,24 +257,27 @@ Portal.handleClient();
 
     // If we have an active client connection, just service that until gone
     // (FIXME - support multiple simultaneous clients)
-    if(session) {
+    if (session)
+    {
         session->handleRequests(0); // we don't use a timeout here,
         // instead we send only if we have new enough frames
 
         uint32_t now = millis();
-        if(now > lastimage + msecPerFrame || now < lastimage) { // handle clock rollover
+        if (now > lastimage + msecPerFrame || now < lastimage)
+        { // handle clock rollover
             session->broadcastCurrentFrame(now);
-            fps = 1000.0/(now-lastimage);
+            fps = 1000.0 / (now - lastimage);
             lastimage = now;
             now = millis();
             printf("%d RTSP frame %.2f FPS\n", lastimage, fps);
 
             // check if we are overrunning our max frame rate
-            if(now > lastimage + msecPerFrame)
+            if (now > lastimage + msecPerFrame)
                 printf("warning exceeding max frame rate of %d ms\n", now - lastimage);
         }
 
-        if(session->m_stopped) {
+        if (session->m_stopped)
+        {
             delete session;
             delete streamer;
             session = NULL;
@@ -268,12 +285,14 @@ Portal.handleClient();
             printf("%lu Closed RTSP session\n", millis());
         }
     }
-    else {
+    else
+    {
         client = rtspServer.accept();
 
-        if(client) {
-            //streamer = new SimStreamer(&client, true);             // our streamer for UDP/TCP based RTP transport
-            streamer = new OV2640Streamer(&client, cam);             // our streamer for UDP/TCP based RTP transport
+        if (client)
+        {
+            //streamer = new SimStreamer(&client, true);   // our streamer for UDP/TCP based RTP transport
+            streamer = new OV2640Streamer(&client, cam); // our streamer for UDP/TCP based RTP transport
 
             session = new CRtspSession(&client, streamer); // our threads RTSP session and state
             printf("%lu Started RTSP session\n", millis());
